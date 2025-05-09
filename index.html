@@ -1,119 +1,75 @@
 <!DOCTYPE html>
-<!--
-  Kayak Route Planner – Dark UI / Light Map (Weather icons & polished form)
-  -----------------------------------------------------------------------
-  • Weather section now shows an emoji icon + styled text.
-  • Form inputs gain subtle focus highlight & grouped spacing for a cleaner look.
-  • Added mapping of Open‑Meteo weather codes to basic emoji icons.
--->
+<!-- Kayak Route Planner – Robust Build (MAP FIX) -->
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kayak Route Planner</title>
-  <link href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" rel="stylesheet" />
-  <style>
-    :root{--bg:#121212;--surface:#1e1e1e;--text:#e0e0e0;--accent:#66bb6a;--accent-dark:#388e3c;--surface-light:#262626}
-    html,body{margin:0;padding:0;height:100%;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
-    .container{display:flex;height:100vh}
-    #map{flex:3;height:100%}
-    .sidebar{flex:1;max-width:360px;padding:24px;background:var(--surface);overflow-y:auto}
-    h1{margin:0 0 6px;font-size:26px;color:var(--accent)}h2{margin:0 0 8px;font-size:18px;color:var(--accent)}
-    .description{font-size:14px;opacity:.8;margin-bottom:12px}
-    .button-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px}
-    button{background:var(--accent);color:#fff;border:none;padding:8px 14px;border-radius:4px;font-size:14px;cursor:pointer;transition:background .2s}
-    button:hover{background:var(--accent-dark)}button:disabled{background:#2e7d32;color:#888;cursor:not-allowed}
-    .form-group{margin-bottom:16px}
-    .form-input{width:100%;padding:10px 12px;border:1px solid #555;border-radius:6px;font-size:14px;background:var(--surface-light);color:var(--text);transition:border-color .2s}
-    .form-input::placeholder{color:#888}.form-input:focus{outline:none;border-color:var(--accent)}
-    .form-input.invalid{border-color:#e53935;background:#4d1e1e}
-    .error-message{display:none;color:#ef5350;font-size:12px;margin-top:6px}
-    .route-details{padding:20px 12px 0;margin-bottom:24px}
-    .distance-info{font-weight:bold;margin:10px 0;color:var(--accent)}
-    #instructions{margin-top:20px;padding:12px;background:#1b1b1b;border-radius:6px;font-size:14px}
-    #instructions li{margin-bottom:6px}
-    #weather{margin-top:18px;font-size:15px;display:flex;align-items:center;gap:8px;opacity:.95}
-    #weatherIcon{font-size:20px}
-    .waypoint-marker{width:12px;height:12px;border-radius:50%;background:var(--accent);border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.5);cursor:pointer}
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kayak Route Planner</title>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" />
+<style>:root{--bg:#121212;--surface:#1e1e1e;--surface2:#262626;--text:#e0e0e0;--accent:#66bb6a;--accent-dark:#388e3c}
+html,body{margin:0;padding:0;height:100%;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+.container{display:flex;height:100vh}
+#map{flex:3;height:100%}
+.sidebar{flex:1;max-width:360px;padding:24px;background:var(--surface);overflow-y:auto}
+h1{margin:0 0 6px;font-size:26px;color:var(--accent)}h2{margin:0 0 8px;font-size:18px;color:var(--accent)}
+.description{font-size:14px;opacity:.8;margin-bottom:12px}
+.button-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px}
+button{background:var(--accent);color:#fff;border:none;padding:8px 14px;border-radius:4px;font-size:14px;cursor:pointer;transition:background .2s}
+button:hover{background:var(--accent-dark)}button:disabled{background:#2e7d32;color:#888;cursor:not-allowed}
+.form-group{margin-bottom:16px}
+.form-input{width:100%;padding:10px 12px;border:1px solid #555;border-radius:6px;font-size:14px;background:var(--surface2);color:var(--text);transition:border-color .2s}
+.form-input:focus{outline:none;border-color:var(--accent)}
+.route-details{padding:20px 12px 0;margin-bottom:24px}
+.distance-info{font-weight:bold;margin:10px 0;color:var(--accent)}
+#weather{margin-top:18px;font-size:15px;display:flex;align-items:center;gap:8px;opacity:.95}
+#weatherIcon{font-size:20px}
+.waypoint-marker{width:12px;height:12px;border-radius:50%;background:var(--accent);border:2px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.5);cursor:pointer}</style>
 </head>
 <body>
-  <div class="container">
-    <div id="map"></div>
-    <div class="sidebar">
-      <h1>Kayak Route Planner</h1>
-      <p class="description">Click to add waypoints – drag markers or the line to refine your route.</p>
-      <div id="distanceInfo" class="distance-info">Distance: 0.00 km / 0.00 mi</div>
-      <div class="button-row"><button id="undoBtn" disabled>Undo Last</button><button id="clearBtn" disabled>Clear All</button></div>
-      <div class="route-details">
-        <h2>Route Details</h2>
-        <div class="form-group"><label for="routeName">Route Name</label><input id="routeName" class="form-input" placeholder="e.g. Morning Loop" /><div id="routeNameError" class="error-message">Route name is required.</div></div>
-        <div class="form-group"><label for="routeDescription">Description</label><textarea id="routeDescription" class="form-input" rows="3" placeholder="Description, difficulty, scenic points..."></textarea><div id="routeDescriptionError" class="error-message">Description is required.</div></div>
-        <div class="form-group"><label for="parkingDetails">Parking Info</label><textarea id="parkingDetails" class="form-input" rows="2" placeholder="Where to park, fees, restrictions..."></textarea><div id="parkingDetailsError" class="error-message">Parking info is required.</div></div>
-        <div class="form-group"><label for="safetyNotes">Safety Notes</label><textarea id="safetyNotes" class="form-input" rows="2" placeholder="Tides, currents, hazards..."></textarea><div id="safetyNotesError" class="error-message">Safety notes are required.</div></div>
-      </div>
-      <div id="instructions"><strong>Instructions</strong><ul><li>Click on the map to place waypoints.</li><li>Drag waypoints to adjust the route.</li><li>Drag the route line to insert a midpoint.</li><li>Undo removes last point; Clear removes all.</li></ul></div>
-      <div id="weather"><span id="weatherIcon">🌤️</span><span id="weatherText">No waypoints yet – weather unavailable.</span></div>
-    </div>
-  </div>
-  <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
-  <script>
-    /* ========== MAP INIT ========== */
-    const map = new maplibregl.Map({
-      container: 'map',
-      style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
-      center: [-7.6921, 53.1424],
-      zoom: 7
-    });
-
-    /* Attempt to recenter map at user's location */
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(pos => {
-        const { latitude, longitude } = pos.coords;
-        map.jumpTo({ center: [longitude, latitude], zoom: 12 });
-      }, () => {/* silent fail - keep default */});
-    }
-
-    /* ---------- State ---------- */
-    let waypoints=[],dragLine=false,dragInfo=null;
-    const distanceInfo=document.getElementById('distanceInfo');
-    const undoBtn=document.getElementById('undoBtn');
-    const clearBtn=document.getElementById('clearBtn');
-    const weatherIcon=document.getElementById('weatherIcon');
-    const weatherText=document.getElementById('weatherText');
-
-    map.on('load',()=>{
-      map.addSource('route',{type:'geojson',data:emptyGeo()});
-      map.addLayer({id:'route-line',type:'line',source:'route',paint:{'line-color':'#66bb6a','line-width':4,'line-opacity':0.9}});
-      map.on('click',e=>addWP(e.lngLat));
-      map.on('mousedown','route-line',e=>{if(e.originalEvent.button!==0)return;const seg=findSeg(e.lngLat);if(seg===null)return;dragLine=true;dragInfo={segIndex:seg,indexInserted:seg+1};map.dragPan.disable();map.getCanvas().style.cursor='grabbing';tempRoute(e.lngLat);});
-      map.on('mousemove',e=>dragLine&&tempRoute(e.lngLat));
-      map.on('mouseup',e=>{if(!dragLine)return;dragLine=false;map.dragPan.enable();map.getCanvas().style.cursor='';insertWP(e.lngLat);});
-    });
-
-    /* ---------- Waypoints ---------- */
-    const mkEl=()=>Object.assign(document.createElement('div'),{className:'waypoint-marker'});
-    function addWP(l){const m=new maplibregl.Marker({element:mkEl(),draggable:true}).setLngLat(l).addTo(map);m.on('dragend',()=>{const i=waypoints.findIndex(w=>w.marker===m);if(i!==-1){const p=m.getLngLat();waypoints[i]={lat:p.lat,lng:p.lng,marker:m};draw();}});waypoints.push({lat:l.lat,lng:l.lng,marker:m});draw();undoBtn.disabled=false;clearBtn.disabled=false;}
-    function insertWP(l){const m=new maplibregl.Marker({element:mkEl(),draggable:true}).setLngLat(l).addTo(map);m.on('dragend',()=>{const i=waypoints.findIndex(w=>w.marker===m);if(i!==-1){const p=m.getLngLat();waypoints[i]={lat:p.lat,lng:p.lng,marker:m};draw();}});waypoints.splice(dragInfo.indexInserted,0,{lat:l.lat,lng:l.lng,marker:m});draw();}
-    const tempRoute=l=>{const c=waypoints.map(w=>[w.lng,w.lat]);c.splice(dragInfo.indexInserted,0,[l.lng,l.lat]);map.getSource('route').setData(lineGeo(c));};
-    function draw(){const coords=waypoints.map(w=>[w.lng,w.lat]);map.getSource('route').setData(coords.length>1?lineGeo(coords):emptyGeo());dist();weather();}
-    undoBtn.onclick=()=>{if(!waypoints.length)return;waypoints.pop().marker.remove();draw();if(!waypoints.length){undoBtn.disabled=true;clearBtn.disabled=true;weatherText.textContent='No waypoints yet – weather unavailable.';weatherIcon.textContent='🌤️';}};
-    clearBtn.onclick=()=>{waypoints.forEach(w=>w.marker.remove());waypoints=[];draw();undoBtn.disabled=true;clearBtn.disabled=true;weatherText.textContent='No waypoints yet – weather unavailable.';weatherIcon.textContent='🌤️';};
-
-    /* ---------- Distance ---------- */
-    const toRad=x=>x*Math.PI/180;const hav=(a,b)=>{const R=6371000,dLat=toRad(b.lat-a.lat),dLon=toRad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLon/2)**2;return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));};
-    function dist(){let m=0;for(let i=1;i<waypoints.length;i++)m+=hav(waypoints[i-1],waypoints[i]);distanceInfo.textContent=`Distance: ${(m/1000).toFixed(2)} km / ${(m/1609.344).toFixed(2)} mi`;}
-
-    /* ---------- Weather ---------- */
-    const code2emoji={0:'☀️',1:'🌤️',2:'⛅️',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',80:'🌧️',81:'🌧️',82:'🌧️',71:'❄️',73:'❄️',75:'❄️',85:'❄️',86:'❄️',95:'⛈️',96:'⛈️',99:'⛈️'};
-    async function weather(){if(!waypoints.length)return;const {lat,lng}=waypoints[0];try{const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(3)}&longitude=${lng.toFixed(3)}&current_weather=true`);const j=await r.json();if(!j.current_weather)throw 0;const w=j.current_weather;weatherIcon.textContent=code2emoji[w.weathercode]||'🌡️';weatherText.textContent=`${w.temperature}°C, wind ${w.windspeed} km/h`;}
-      catch{weatherIcon.textContent='❓';weatherText.textContent='Weather unavailable.';}}
-
-    /* ---------- Utils ---------- */
-    const emptyGeo=()=>({type:'FeatureCollection',features:[]});
-    const lineGeo=c=>({type:'FeatureCollection',features:[{type:'Feature',geometry:{type:'LineString',coordinates:c}}]});
-    const pxDist=(p,p1,p2)=>{const A=p.x-p1.x,B=p.y-p1.y,C=p2.x-p1.x,D=p2.y-p1.y;const dot=A*C+B*D,len=C*C+D*D;let t=len?dot/len:-1;t=Math.max(0,Math.min(1,t));const projX=p1.x+t*C,projY=p1.y+t*D;return Math.hypot(p.x-projX,p.y-projY);}    
-    function findSeg(l){if(waypoints.length<2)return null;const click=map.project(l);let m=1e9,idx=null;for(let i=0;i<waypoints.length-1;i++){const p1=map.project([waypoints[i].lng,waypoints[i].lat]);const p2=map.project([waypoints[i+1].lng,waypoints[i+1].lat]);const d=pxDist(click,p1,p2);if(d<m){m=d;idx=i;}}return m<8?idx:null;}
-  </script>
-</body>
-</html>
+<div class="container"><div id="map"></div><div class="sidebar"><h1>Kayak Route Planner</h1><p class="description">Click to add waypoints – drag markers or the line to refine your route.</p><div id="distanceInfo" class="distance-info">Distance: 0.00 km / 0.00 mi</div><div class="button-row"><button id="undoBtn" disabled>Undo Last</button><button id="clearBtn" disabled>Clear All</button><button id="outBackBtn" disabled>Out and Back</button></div><div class="route-details"><h2>Route Details</h2><div class="form-group"><label for="routeName">Route Name</label><input id="routeName" class="form-input" placeholder="e.g. Estuary Loop" /></div><div class="form-group"><label for="routeDescription">Description</label><textarea id="routeDescription" class="form-input" rows="3"></textarea></div><div class="form-group"><label for="parkingDetails">Parking Info</label><textarea id="parkingDetails" class="form-input" rows="2"></textarea></div><div class="form-group"><label for="safetyNotes">Safety Notes</label><textarea id="safetyNotes" class="form-input" rows="2"></textarea></div></div><div id="weather"><span id="weatherIcon">🌤️</span><span id="weatherText">No waypoints yet – weather unavailable.</span></div></div></div>
+<script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
+<script>
+// fetch with timeout wrapper
+const fetchTimeout=(u,m=4000)=>Promise.race([fetch(u),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),m))]);
+// map style with fallback
+const primary='https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
+const fallback={version:8,sources:{osm:{type:'raster',tiles:['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png'],tileSize:256,attribution:'© OpenStreetMap'}},layers:[{id:'osm',type:'raster',source:'osm'}]};
+const map=new maplibregl.Map({container:'map',style:primary,center:[-7.6921,53.1424],zoom:7});
+map.on('style.load',()=>console.log('style loaded'));
+map.on('error',e=>{if(e.error&&e.error.message&&e.error.message.includes('style')||e.error.status===0){console.warn('switching to raster fallback');map.setStyle(fallback);}});
+if(navigator.geolocation){navigator.geolocation.getCurrentPosition(p=>map.jumpTo({center:[p.coords.longitude,p.coords.latitude],zoom:12}));}
+// state
+let waypoints=[],drag=false,dragInfo=null,outBack=false;
+// DOM refs
+const distEl=document.getElementById('distanceInfo');const undoBtn=document.getElementById('undoBtn');const clrBtn=document.getElementById('clearBtn');const obBtn=document.getElementById('outBackBtn');const wIcon=document.getElementById('weatherIcon');const wText=document.getElementById('weatherText');
+// helper creators
+const emptyGeo=()=>({type:'FeatureCollection',features:[]});const lineGeo=c=>({type:'FeatureCollection',features:[{type:'Feature',geometry:{type:'LineString',coordinates:c}}]});
+const mkEl=()=>Object.assign(document.createElement('div'),{className:'waypoint-marker'});
+map.on('load',()=>{
+ map.addSource('route',{type:'geojson',data:emptyGeo()});
+ map.addLayer({id:'route-line',type:'line',source:'route',paint:{'line-color':'#66bb6a','line-width':4,'line-opacity':0.9}});
+ map.on('click',e=>addWP(e.lngLat));
+ map.on('mousedown','route-line',e=>{if(e.originalEvent.button!==0)return;const s=findSeg(e.lngLat);if(s===null)return;drag=true;dragInfo={i:s,ins:s+1};map.dragPan.disable();map.getCanvas().style.cursor='grabbing';temp(e.lngLat);});
+ map.on('mousemove',e=>drag&&temp(e.lngLat));
+ map.on('mouseup',e=>{if(!drag)return;drag=false;map.dragPan.enable();map.getCanvas().style.cursor='';insertWP(e.lngLat);});
+});
+function addWP(l){const m=new maplibregl.Marker({element:mkEl(),draggable:true}).setLngLat(l).addTo(map);m.on('dragend',()=>{const i=waypoints.findIndex(w=>w.marker===m);if(i!==-1){const p=m.getLngLat();waypoints[i]={lat:p.lat,lng:p.lng,marker:m};draw();}});waypoints.push({lat:l.lat,lng:l.lng,marker:m});draw();}
+function insertWP(l){const m=new maplibregl.Marker({element:mkEl(),draggable:true}).setLngLat(l).addTo(map);m.on('dragend',()=>{const i=waypoints.findIndex(w=>w.marker===m);if(i!==-1){const p=m.getLngLat();waypoints[i]={lat:p.lat,lng:p.lng,marker:m};draw();}});waypoints.splice(dragInfo.ins,0,{lat:l.lat,lng:l.lng,marker:m});draw();}
+function temp(l){const c=waypoints.map(w=>[w.lng,w.lat]);c.splice(dragInfo.ins,0,[l.lng,l.lat]);map.getSource('route').setData(lineGeo(c));}
+undoBtn.onclick=()=>{if(!waypoints.length)return;waypoints.pop().marker.remove();outBack=false;draw();};
+clrBtn.onclick =()=>{waypoints.forEach(w=>w.marker.remove());waypoints=[];outBack=false;draw();wIcon.textContent='🌤️';wText.textContent='No waypoints yet – weather unavailable.';};
+obBtn.onclick  =()=>{if(outBack||waypoints.length<2)return;[...waypoints].slice(0,-1).reverse().forEach(w=>addWP({lat:w.lat,lng:w.lng}));outBack=true;obBtn.disabled=true;};
+function draw(){const c=waypoints.map(w=>[w.lng,w.lat]);map.getSource('route').setData(c.length>1?lineGeo(c):emptyGeo());distance();weather();toggle();}
+function toggle(){const has=waypoints.length>0;undoBtn.disabled=!has;clrBtn.disabled=!has;obBtn.disabled=!(waypoints.length>1)||outBack;}
+// distance
+const rad=x=>x*Math.PI/180;const hav=(a,b)=>{const R=6371000;const dLat=rad(b.lat-a.lat),dLon=rad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLon/2)**2;return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));};
+function distance(){let m=0;for(let i=1;i<waypoints.length;i++)m+=hav(waypoints[i-1],waypoints[i]);distEl.textContent=`Distance: ${(m/1000).toFixed(2)} km / ${(m/1609.344).toFixed(2)} mi`;}
+// weather
+const codeIcon={0:'☀️',1:'🌤️',2:'⛅️',3:'☁️',45:'🌫️',48:'🌫️',51:'🌦️',53:'🌦️',55:'🌧️',61:'🌧️',63:'🌧️',65:'🌧️',80:'🌧️',81:'🌧️',82:'🌧️',71:'❄️',73:'❄️',75:'❄️',85:'❄️',86:'❄️',95:'⛈️',96:'⛈️',99:'⛈️'};
+async function weather(){if(!waypoints.length)return;const {lat,lng}=waypoints[0];try{const r=await fetchTimeout(`https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(3)}&longitude=${lng.toFixed(3)}&current_weather=true`);const j=await r.json();if(!j.current_weather)throw 0;const w=j.current_weather;wIcon.textContent=codeIcon[w.weathercode]||'🌡️';wText.textContent=`${w.temperature}°C, wind ${w.windspeed} km/h`;}
+catch{wIcon.textContent='❓';wText.textContent='Weather unavailable.';}}
+// segment util
+const pxDist=(p,p1,p2)=>{const A=p.x-p1.x,B=p.y-p1.y,C=p2.x-p1.x,D=p2.y-p1.y;const dot=A*C+B*D,len=C*C+D*D;let t=len?dot/len:0;t=Math.max(0,Math.min(1,t));const projX=p1.x+t*C,projY=p1.y+t*D;return Math.hypot(p.x-projX,p.y-projY);};
+function findSeg(l){if(waypoints.length<2)return null;const click=map.project(l);let m=1e9,idx=null;for(let i=0;i<waypoints.length-1;i++){const p1=map.project([waypoints[i].lng,waypoints[i].lat]);const p2=map.project([waypoints[i+1].lng,waypoints[i+1].lat]);const d=pxDist(click,p1,p2);if(d<m){m=d;idx=i;}}return m<8?idx:null;}
+</script>
+</body></html>
