@@ -1,8 +1,5 @@
 <!DOCTYPE html>
-<!-- Kayak Route Planner – Final Build
-  • Weather functionality removed
-  • Export Image shows full route extent plus form details key
--->
+<!-- Kayak Route Planner – Final Build with List Buttons & Return View -->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -11,17 +8,18 @@
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.css" />
   <style>
     :root{--bg:#121212;--surface:#1e1e1e;--surface2:#262626;--text:#e0e0e0;--accent:#66bb6a;--accent-dark:#388e3c}
-    html,body{margin:0;padding:0;height:100%;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+    html,body{margin:0;padding:0;height:100%;font-family:Arial,sans-serif;background:var(--bg);color:var(--text)}
     .container{display:flex;height:100vh}
     #map{flex:3;height:100%}
     .sidebar{flex:1;max-width:360px;padding:24px;background:var(--surface);overflow-y:auto}
     h1{margin:0 0 6px;font-size:26px;color:var(--accent)}
     .description{font-size:14px;opacity:.8;margin-bottom:12px}
-    .button-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px}
-    button{background:var(--accent);color:#fff;border:none;padding:8px 14px;border-radius:4px;font-size:14px;cursor:pointer;transition:background .2s}
+    .button-list{list-style:none;padding:0;margin-bottom:20px;display:flex;flex-direction:column;gap:10px}
+    .button-list li{ }
+    button{width:100%;background:var(--accent);color:#fff;border:none;padding:10px;border-radius:4px;font-size:14px;cursor:pointer;transition:background .2s}
     button:hover{background:var(--accent-dark)}button:disabled{background:#2e7d32;color:#888;cursor:not-allowed}
     .form-group{margin-bottom:16px}
-    .form-input{width:100%;padding:10px 12px;border:1px solid #555;border-radius:6px;font-size:14px;background:var(--surface2);color:var(--text)}
+    .form-input{width:100%;padding:10px;border:1px solid #555;border-radius:6px;font-size:14px;background:var(--surface2);color:var(--text);transition:border-color .2s}
     .form-input:focus{outline:none;border-color:var(--accent)}
     .route-details{padding:20px 12px 0;margin-bottom:24px}
     .distance-info{font-weight:bold;margin:10px 0;color:var(--accent)}
@@ -35,12 +33,13 @@
       <h1>Kayak Route Planner</h1>
       <p class="description">Click to add waypoints – drag markers or line to refine route.</p>
       <div id="distanceInfo" class="distance-info">Distance: 0.00 km / 0.00 mi</div>
-      <div class="button-row">
-        <button id="undoBtn" disabled>Undo Last</button>
-        <button id="clearBtn" disabled>Clear All</button>
-        <button id="outBackBtn" disabled>Out & Back</button>
-        <button id="exportImgBtn" disabled>📷 Export Image</button>
-      </div>
+      <ul class="button-list">
+        <li><button id="undoBtn" disabled>Undo Last</button></li>
+        <li><button id="clearBtn" disabled>Clear All</button></li>
+        <li><button id="outBackBtn" disabled>Out & Back</button></li>
+        <li><button id="returnViewBtn" disabled>Return to Waypoints</button></li>
+        <li><button id="exportImgBtn" disabled>📷 Export Image</button></li>
+      </ul>
       <div class="route-details">
         <h2>Route Details</h2>
         <div class="form-group"><label for="routeName">Route Name</label><input id="routeName" class="form-input" placeholder="e.g. Estuary Loop" /></div>
@@ -50,147 +49,53 @@
       </div>
     </div>
   </div>
-
   <script src="https://unpkg.com/maplibre-gl@2.4.0/dist/maplibre-gl.js"></script>
   <script>
-    // Hoisted utilities
-    function emptyGeo() { return { type:'FeatureCollection', features:[] }; }
-    function lineGeo(coords) { return { type:'FeatureCollection', features:[{ type:'Feature', geometry:{ type:'LineString', coordinates:coords }}] }; }
-    // Timeout wrapper
-    const fetchTimeout = (url,ms=4000) => Promise.race([ fetch(url), new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms)) ]);
-
+    // Utilities
+    function emptyGeo(){return {type:'FeatureCollection',features:[]};}
+    function lineGeo(c){return {type:'FeatureCollection',features:[{type:'Feature',geometry:{type:'LineString',coordinates:c}}]};}
+    const fetchTimeout=(u,ms=4000)=>Promise.race([fetch(u),new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),ms))]);
     // Map init + fallback
     const primary='https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json';
-    const fallback={ version:8, sources:{ osm:{ type:'raster', tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize:256 } }, layers:[{ id:'osm',type:'raster',source:'osm' }] };
-    const map=new maplibregl.Map({ container:'map', style:primary, center:[-7.6921,53.1424], zoom:7, preserveDrawingBuffer:true });
-    // Attempt to center on user's current location
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(pos => {
-        map.jumpTo({ center:[pos.coords.longitude, pos.coords.latitude], zoom:12 });
-      }, () => {
-        // silent fail: keep default
-      });
-    }
-    map.on('error', e=>{ if(e?.error?.status===0) map.setStyle(fallback); });
-    // Variables
-    let waypoints=[], dragging=false, dragInfo=null, outBackDone=false;
-    // DOM
+    const fallback={version:8,sources:{osm:{type:'raster',tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],tileSize:256}},layers:[{id:'osm',type:'raster',source:'osm'}]};
+    const map=new maplibregl.Map({container:'map',style:primary,center:[-7.6921,53.1424],zoom:7,preserveDrawingBuffer:true});
+    if(navigator.geolocation){navigator.geolocation.getCurrentPosition(p=>map.jumpTo({center:[p.coords.longitude,p.coords.latitude],zoom:12}));}
+    map.on('error',e=>{if(e?.error?.status===0)map.setStyle(fallback);});
+    // State & DOM
+    let waypoints=[],dragging=false,dragInfo=null,outBackDone=false;
     const distEl=document.getElementById('distanceInfo');
-    const undoBtn=document.getElementById('undoBtn'), clearBtn=document.getElementById('clearBtn');
-    const obBtn=document.getElementById('outBackBtn'), expBtn=document.getElementById('exportImgBtn');
-    const nameInput=document.getElementById('routeName'), descInput=document.getElementById('routeDescription');
-    const parkInput=document.getElementById('parkingDetails'), safeInput=document.getElementById('safetyNotes');
-
-    // On load
-    map.on('load', ()=>{
-      map.addSource('route',{ type:'geojson', data: emptyGeo() });
-      map.addLayer({ id:'route-line', type:'line', source:'route', paint:{ 'line-color':'#66bb6a','line-width':4,'line-opacity':0.9 } });
-      map.on('click', e=> addWP(e.lngLat));
-      map.on('mousedown','route-line', e=>{
-        if(e.originalEvent.button!==0) return;
-        const seg=findSegment(e.lngLat); if(seg===null) return;
-        dragging=true; dragInfo={ segIndex:seg, indexInserted:seg+1 };
-        map.dragPan.disable(); map.getCanvas().style.cursor='grabbing'; tempRoute(e.lngLat);
-      });
-      map.on('mousemove', e=> dragging && tempRoute(e.lngLat));
-      map.on('mouseup', e=>{
-        if(!dragging) return;
-        dragging=false; map.dragPan.enable(); map.getCanvas().style.cursor=''; insertWP(e.lngLat);
-      });
+    const undoBtn=document.getElementById('undoBtn'),clearBtn=document.getElementById('clearBtn');
+    const obBtn=document.getElementById('outBackBtn'),retBtn=document.getElementById('returnViewBtn');
+    const expBtn=document.getElementById('exportImgBtn');
+    const nameIn=document.getElementById('routeName'),descIn=document.getElementById('routeDescription');
+    const parkIn=document.getElementById('parkingDetails'),safeIn=document.getElementById('safetyNotes');
+    // Map interactions
+    map.on('load',()=>{
+      map.addSource('route',{type:'geojson',data:emptyGeo()});
+      map.addLayer({id:'route-line',type:'line',source:'route',paint:{'line-color':'#66bb6a','line-width':4,'line-opacity':0.9}});
+      map.on('click',e=>addWP(e.lngLat));
+      map.on('mousedown','route-line',e=>{if(e.originalEvent.button) return;const s=findSegment(e.lngLat);if(s===null)return;dragging=true;dragInfo={i:s,ins:s+1};map.dragPan.disable();map.getCanvas().style.cursor='grabbing';temp(e.lngLat);});
+      map.on('mousemove',e=>dragging&&temp(e.lngLat));
+      map.on('mouseup',e=>{if(!dragging)return;dragging=false;map.dragPan.enable();map.getCanvas().style.cursor='';insertWP(e.lngLat);});
     });
-
-    // Waypoints
-    const mkEl=()=> Object.assign(document.createElement('div'),{ className:'waypoint-marker' });
-    function addWP(l){
-      const m=new maplibregl.Marker({ element: mkEl(), draggable:true }).setLngLat(l).addTo(map);
-      m.on('dragend', ()=>{ const i=waypoints.findIndex(w=>w.marker===m); if(i!==-1){ const p=m.getLngLat(); waypoints[i]={ lat:p.lat, lng:p.lng, marker:m }; redraw(); }});
-      waypoints.push({ lat:l.lat, lng:l.lng, marker:m }); redraw();
-    }
-    function insertWP(l){
-      const m=new maplibregl.Marker({ element: mkEl(), draggable:true }).setLngLat(l).addTo(map);
-      m.on('dragend', ()=>{ const i=waypoints.findIndex(w=>w.marker===m); if(i!==-1){ const p=m.getLngLat(); waypoints[i]={ lat:p.lat, lng:p.lng, marker:m }; redraw(); }});
-      waypoints.splice(dragInfo.indexInserted, 0, { lat:l.lat, lng:l.lng, marker:m }); redraw();
-    }
-    function tempRoute(l){
-      const coords=waypoints.map(w=>[w.lng,w.lat]); coords.splice(dragInfo.indexInserted,0,[l.lng,l.lat]);
-      map.getSource('route').setData(lineGeo(coords));
-    }
-
+    // Waypoint funcs
+    const mkEl=()=>Object.assign(document.createElement('div'),{className:'waypoint-marker'});
+    function addWP(l){const m=new maplibregl.Marker({element:mkEl(),draggable:true}).setLngLat(l).addTo(map);m.on('dragend',()=>{const i=waypoints.findIndex(w=>w.marker===m);if(i!==-1){const p=m.getLngLat();waypoints[i]={lat:p.lat,lng:p.lng,marker:m};redraw();}});waypoints.push({lat:l.lat,lng:l.lng,marker:m});redraw();}
+    function insertWP(l){const m=new maplibregl.Marker({element:mkEl(),draggable:true}).setLngLat(l).addTo(map);m.on('dragend',()=>{const i=waypoints.findIndex(w=>w.marker===m);if(i!==-1){const p=m.getLngLat();waypoints[i]={lat:p.lat,lng:p.lng,marker:m};redraw();}});waypoints.splice(dragInfo.ins,0,{lat:l.lat,lng:l.lng,marker:m});redraw();}
+    function temp(l){const c=waypoints.map(w=>[w.lng,w.lat]);c.splice(dragInfo.ins,0,[l.lng,l.lat]);map.getSource('route').setData(lineGeo(c));}
     // Buttons
-    undoBtn.onclick = ()=>{ if(!waypoints.length) return; waypoints.pop().marker.remove(); outBackDone=false; redraw(); };
-    clearBtn.onclick= ()=>{ waypoints.forEach(w=>w.marker.remove()); waypoints=[]; outBackDone=false; redraw(); };
-    obBtn.onclick   = ()=>{ if(outBackDone||waypoints.length<2) return; [...waypoints].slice(0,-1).reverse().forEach(w=> addWP({ lat:w.lat, lng:w.lng })); outBackDone=true; obBtn.disabled=true; };
-
-    expBtn.onclick = ()=>{
-      // fit to route bounds
-      const bbox = waypoints.map(w=>[w.lng,w.lat]);
-      map.fitBounds(bbox, { padding:20, duration:0 });
-      setTimeout(()=>{
-        const canvas=map.getCanvas();
-        canvas.toBlob(blob=>{
-          if(!blob){ alert('Export failed'); return; }
-          const w=canvas.width, h=canvas.height;
-          // draw on offscreen canvas
-          const off=document.createElement('canvas'); off.width=w; off.height=h;
-          const ctx=off.getContext('2d');
-          const img=new Image();
-          img.onload = ()=>{
-            ctx.drawImage(img,0,0);
-            // overlay title
-            ctx.fillStyle='#fff'; ctx.font='18px Arial'; ctx.fillText(nameInput.value,20,30);
-            // key box
-            const boxW=250, boxH=120; ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(w-boxW-10,h-boxH-10,boxW,boxH);
-            ctx.fillStyle='#fff'; ctx.font='14px Arial'; let y=h-boxH+20;
-            [
-              `• ${nameInput.value}`,
-              `• ${distEl.textContent}`,
-              `• ${descInput.value}`,
-              `• ${parkInput.value}`,
-              `• ${safeInput.value}`
-            ].forEach(line=>{ ctx.fillText(line,w-boxW, y); y+=20; });
-            off.toBlob(b=>{ const url=URL.createObjectURL(b); const win=window.open(url,'_blank'); win.document.title='Route Snapshot'; });
-          };
-          img.src = URL.createObjectURL(blob);
-        });
-      }, 1000);
-    };
-
+    undoBtn.onclick=()=>{if(!waypoints.length)return;waypoints.pop().marker.remove();outBackDone=false;redraw();};
+    clearBtn.onclick=()=>{waypoints.forEach(w=>w.marker.remove());waypoints=[];outBackDone=false;redraw();};
+    obBtn.onclick=()=>{if(outBackDone||waypoints.length<2)return;[...waypoints].slice(0,-1).reverse().forEach(w=>addWP({lat:w.lat,lng:w.lng}));outBackDone=true;obBtn.disabled=true;};
+    retBtn.onclick=()=>{if(waypoints.length<1)return;const bounds=waypoints.map(w=>[w.lng,w.lat]);map.fitBounds(bounds,{padding:20});};
+    expBtn.onclick=()=>{const bounds=waypoints.map(w=>[w.lng,w.lat]);map.fitBounds(bounds,{padding:20,duration:0});setTimeout(()=>{const canvas=map.getCanvas();canvas.toBlob(blob=>{if(!blob)return;const w=canvas.width,h=canvas.height;const off=document.createElement('canvas');off.width=w;off.height=h;const ctx=off.getContext('2d');const img=new Image();img.onload=()=>{ctx.drawImage(img,0,0);ctx.fillStyle='#fff';ctx.font='18px Arial';ctx.fillText(nameIn.value,20,30);const boxW=250,boxH=140;ctx.fillStyle='rgba(0,0,0,0.6)';ctx.fillRect(w-boxW-10,h-boxH-10,boxW,boxH);ctx.fillStyle='#fff';ctx.font='14px Arial';let y=h-boxH+20;[`• ${nameIn.value}`,`• ${distEl.textContent}`,`• ${descIn.value}`,`• ${parkIn.value}`,`• ${safeIn.value}`].forEach(line=>{ctx.fillText(line,w-boxW,y);y+=20;});off.toBlob(b=>{const url=URL.createObjectURL(b);const win=window.open(url,'_blank');win.document.title=nameIn.value;});};img.src=URL.createObjectURL(blob);});},1000);};
     // redraw
-    function redraw(){
-      const coords=waypoints.map(w=>[w.lng,w.lat]);
-      map.getSource('route').setData(coords.length>1?lineGeo(coords):emptyGeo());
-      updateDistance(); toggleButtons();
-    }
-    function updateDistance(){
-      let m=0; for(let i=1;i<waypoints.length;i++){ m+=haversine(waypoints[i-1],waypoints[i]); }
-      distEl.textContent=`Distance: ${(m/1000).toFixed(2)} km / ${(m/1609.344).toFixed(2)} mi`;
-    }
-    const haversine=(a,b)=>{ const R=6371000; const toRad=x=>x*Math.PI/180; const dLat=toRad(b.lat-a.lat), dLon=toRad(b.lng-a.lng);
-      const s=Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLon/2)**2;
-      return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));
-    };
-    function toggleButtons(){ const has=waypoints.length>0; undoBtn.disabled=!has; clearBtn.disabled=!has;
-      obBtn.disabled=!(waypoints.length>1)||outBackDone;
-      // enable export only when form and waypoints
-      expBtn.disabled = !(has && nameInput.value && descInput.value && parkInput.value && safeInput.value);
-    }
-    // Re-evaluate export button state when form inputs change
-    [nameInput, descInput, parkInput, safeInput].forEach(el => el.addEventListener('input', toggleButtons));
-
-    // segment pick
-    function findSegment(lngLat){ if(waypoints.length<2) return null;
-      const click=map.project(lngLat); let min=Infinity, idx=null;
-      waypoints.slice(0,-1).forEach((w,i)=>{
-        const p1=map.project([w.lng,w.lat]), p2=map.project([waypoints[i+1].lng,waypoints[i+1].lat]);
-        const dx=click.x-p1.x, dy=click.y-p1.y, cx=p2.x-p1.x, cy=p2.y-p1.y;
-        const t=((dx*cx+dy*cy)/(cx*cx+cy*cy)).clamp(0,1);
-        const projX=p1.x+t*cx, projY=p1.y+t*cy;
-        const d=Math.hypot(click.x-projX,click.y-projY);
-        if(d<min){min=d;idx=i;}
-      });
-      return min<8?idx:null;
-    }
-    Number.prototype.clamp=function(a,b){return Math.min(Math.max(this,a),b);}  
+    function redraw(){const c=waypoints.map(w=>[w.lng,w.lat]);map.getSource('route').setData(c.length>1?lineGeo(c):emptyGeo());updateDistance();toggleButtons();}
+    function updateDistance(){let m=0;for(let i=1;i<waypoints.length;i++)m+=haversine(waypoints[i-1],waypoints[i]);distEl.textContent=`Distance: ${(m/1000).toFixed(2)} km / ${(m/1609.344).toFixed(2)} mi`;}
+    const haversine=(a,b)=>{const R=6371000,toRad=x=>x*Math.PI/180,dLat=toRad(b.lat-a.lat),dLon=toRad(b.lng-a.lng);const s=Math.sin(dLat/2)**2+Math.cos(toRad(a.lat))*Math.cos(toRad(b.lat))*Math.sin(dLon/2)**2;return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));};
+    function toggleButtons(){const has=waypoints.length>0;undoBtn.disabled=!has;clearBtn.disabled=!has;obBtn.disabled=!(waypoints.length>1)||outBackDone;retBtn.disabled=!has;expBtn.disabled=!(has&&nameIn.value&&descIn.value&&parkIn.value&&safeIn.value);}  
+    [nameIn,descIn,parkIn,safeIn].forEach(el=>el.addEventListener('input',toggleButtons));
+    function findSegment(l){if(waypoints.length<2)return null;const click=map.project(l);let min=Infinity,idx=null;waypoints.slice(0,-1).forEach((w,i)=>{const p1=map.project([w.lng,w.lat]),p2=map.project([waypoints[i+1].lng,waypoints[i+1].lat]);const dx=click.x-p1.x,dy=click.y-p1.y,cx=p2.x-p1.x,cy=p2.y-p1.y;let t=((dx*cx+dy*cy)/(cx*cx+cy*cy));t=t<0?0:t>1?1:t;const projX=p1.x+t*cx,projY=p1.y+t*cy;const d=Math.hypot(click.x-projX,click.y-projY);if(d<min){min=d;idx=i;}});return min<8?idx:null;}
   </script>
 </body>
 </html>
